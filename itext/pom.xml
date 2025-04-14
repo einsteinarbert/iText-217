@@ -1,0 +1,59 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.lowagie</groupId>
+    <artifactId>itext</artifactId>
+    <version>2.1.7</version>
+    <packaging>jar</packaging>
+
+    <name>iText</name>
+    <description>iText 2.1.7 - last free version under LGPL/MPL</description>
+    <url>https://github.com/itext/itextpdf</url>
+
+    <licenses>
+        <license>
+            <name>LGPL/MPL</name>
+            <url>https://github.com/itext/itextpdf/blob/2.1.7/LICENSE</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <dependencies>
+        <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcmail-jdk14 -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcmail-jdk14</artifactId>
+            <version>1.44</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcprov-jdk14 -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk14</artifactId>
+            <version>1.44</version>
+        </dependency>
+        <dependency>
+            <groupId>bouncycastle</groupId>
+            <artifactId>bctsp-jdk14</artifactId>
+            <version>1.44</version>
+        </dependency>
+    </dependencies>
+
+
+    <build>
+        <sourceDirectory>src/main/java</sourceDirectory>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.1</version>
+                <configuration>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
