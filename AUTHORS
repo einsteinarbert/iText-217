@@ -1,0 +1,26 @@
+This file lists the original authors and major contributors to this project.
+
+Original Project:
+-----------------
+Project: iText
+Version: 2.1.7
+Homepage: https://github.com/itext/itextpdf/tree/2.1.7
+Original Authors:
+  - Bruno Lowagie <bruno@lowagie.com>
+  - Paulo Soares
+  - Additional contributors as listed in original iText source and documentation.
+
+Fork and Modifications:
+------------------------
+This project is a modified version of iText 2.1.7.
+Modifications and enhancements have been made by:
+
+  - HieuTT <hieu19926@gmail.com>
+
+The modified version is licensed under the Apache 2.0 License. See LICENSE file for details.
+
+Note:
+-----
+This fork is independent of iText Software and is not affiliated with the maintainers of newer versions of iText (5.x and 7.x).
+
+Please refer to the LICENSE file for legal use and redistribution information under the Apache 2.0 License.
