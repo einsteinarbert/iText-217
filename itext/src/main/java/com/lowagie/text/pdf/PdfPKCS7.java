@@ -48,9 +48,8 @@ package com.lowagie.text.pdf;
 
 import java.io.*;
 import java.math.BigInteger;
-import java.security.MessageDigest;
-import java.security.PrivateKey;
-import java.security.Signature;
+import java.security.*;
+import java.security.cert.CRL;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.*;
@@ -60,6 +59,7 @@ import org.bouncycastle.asn1.cms.AttributeTable;
 import org.bouncycastle.asn1.cms.Attribute;
 import org.bouncycastle.asn1.ocsp.BasicOCSPResponse;
 import org.bouncycastle.asn1.ocsp.OCSPObjectIdentifiers;
+import org.bouncycastle.asn1.tsp.MessageImprint;
 import org.bouncycastle.asn1.x509.Certificate;
 import org.bouncycastle.cert.X509CRLHolder;
 import org.bouncycastle.cert.X509CertificateHolder;
@@ -522,20 +522,171 @@ public class PdfPKCS7 {
             throw new ExceptionConverter(e);
         }
     }
+    /**
+     * Generates a signature.
+     * @param privKey the private key
+     * @param certChain the certificate chain
+     * @param crlList the certificate revocation list
+     * @param hashAlgorithm the hash algorithm
+     * @param provider the provider or <code>null</code> for the default provider
+     * @param hasRSAdata <CODE>true</CODE> if the sub-filter is adbe.pkcs7.sha1
+     * @throws InvalidKeyException on error
+     * @throws NoSuchProviderException on error
+     * @throws NoSuchAlgorithmException on error
+     */
+    public PdfPKCS7(PrivateKey privKey, java.security.cert.Certificate[] certChain, CRL[] crlList,
+                    String hashAlgorithm, String provider, boolean hasRSAdata)
+            throws InvalidKeyException, NoSuchProviderException,
+            NoSuchAlgorithmException
+    {
+        this.privKey = privKey;
+        this.provider = provider;
+
+        digestAlgorithm = (String)allowedDigests.get(hashAlgorithm.toUpperCase());
+        if (digestAlgorithm == null)
+            throw new NoSuchAlgorithmException("Unknown Hash Algorithm "+hashAlgorithm);
+
+        version = signerversion = 1;
+        certs = new ArrayList();
+        crls = new ArrayList();
+        digestalgos = new HashSet();
+        digestalgos.add(digestAlgorithm);
+
+        //
+        // Copy in the certificates and crls used to sign the private key.
+        //
+        signCert = (X509Certificate)certChain[0];
+        for (int i = 0;i < certChain.length;i++) {
+            certs.add(certChain[i]);
+        }
+
+        if (crlList != null) {
+            for (int i = 0;i < crlList.length;i++) {
+                crls.add(crlList[i]);
+            }
+        }
+
+        if (privKey != null) {
+            //
+            // Now we have private key, find out what the digestEncryptionAlgorithm is.
+            //
+            digestEncryptionAlgorithm = privKey.getAlgorithm();
+            if (digestEncryptionAlgorithm.equals("RSA")) {
+                digestEncryptionAlgorithm = ID_RSA;
+            }
+            else if (digestEncryptionAlgorithm.equals("DSA")) {
+                digestEncryptionAlgorithm = ID_DSA;
+            }
+            else {
+                throw new NoSuchAlgorithmException("Unknown Key Algorithm "+digestEncryptionAlgorithm);
+            }
+        }
+        if (hasRSAdata) {
+            RSAdata = new byte[0];
+            if (provider == null || provider.startsWith("SunPKCS11"))
+                messageDigest = MessageDigest.getInstance("SHA-256");
+            else
+                messageDigest = MessageDigest.getInstance("SHA-256", provider);
+        }
+
+        if (privKey != null) {
+            if (provider == null)
+                sig = Signature.getInstance("SHA256withRSA"); // 🔁 replaced getDigestAlgorithm()
+            else
+                sig = Signature.getInstance("SHA256withRSA", provider);
+
+            sig.initSign(privKey);
+        }
+    }
+
+    /**
+     * Update the digest with the specified bytes. This method is used both for signing and verifying
+     * @param buf the data buffer
+     * @param off the offset in the data buffer
+     * @param len the data length
+     * @throws SignatureException on error
+     */
+    public void update(byte[] buf, int off, int len) throws SignatureException {
+        if (RSAdata != null || digestAttr != null)
+            messageDigest.update(buf, off, len);
+        else
+            sig.update(buf, off, len);
+    }
+
+    /**
+     * Verify the digest.
+     * @throws SignatureException on error
+     * @return <CODE>true</CODE> if the signature checks out, <CODE>false</CODE> otherwise
+     */
+    public boolean verify() throws SignatureException {
+        if (verified)
+            return verifyResult;
+        if (sigAttr != null) {
+            sig.update(sigAttr);
+            if (RSAdata != null) {
+                byte msd[] = messageDigest.digest();
+                messageDigest.update(msd);
+            }
+            verifyResult = (Arrays.equals(messageDigest.digest(), digestAttr) && sig.verify(digest));
+        }
+        else {
+            if (RSAdata != null)
+                sig.update(messageDigest.digest());
+            verifyResult = sig.verify(digest);
+        }
+        verified = true;
+        return verifyResult;
+    }
+
+    /**
+     * Checks if the timestamp refers to this document.
+     * @throws java.security.NoSuchAlgorithmException on error
+     * @return true if it checks false otherwise
+     * @since	2.1.6
+     */
+    public boolean verifyTimestampImprint() throws NoSuchAlgorithmException {
+        if (timeStampToken == null)
+            return false;
+        MessageImprint imprint = timeStampToken.getTimeStampInfo().toASN1Structure().getMessageImprint();
+        byte[] md = MessageDigest.getInstance("SHA-1").digest(digest);
+        byte[] imphashed = imprint.getHashedMessage();
+        return Arrays.equals(md, imphashed);
+    }
+
+    /**
+     * Get all the X.509 certificates associated with this PKCS#7 object in no particular order.
+     * Other certificates, from OCSP for example, will also be included.
+     * @return the X.509 certificates associated with this PKCS#7 object
+     */
+    public java.security.cert.Certificate[] getCertificates() {
+        return (X509Certificate[])certs.toArray(new X509Certificate[0]);
+    }
+
+    /**
+     * Get the X.509 sign certificate chain associated with this PKCS#7 object.
+     * Only the certificates used for the main signature will be returned, with
+     * the signing certificate first.
+     * @return the X.509 certificates associated with this PKCS#7 object
+     * @since	2.1.6
+     */
+    public java.security.cert.Certificate[] getSignCertificateChain() {
+        return (X509Certificate[])signCerts.toArray(new X509Certificate[0]);
+    }
 
     private void signCertificateChain() {
-        List<X509Certificate> cc = new ArrayList();
+        var cc = new ArrayList<>();
         cc.add(signCert);
         var oc = new ArrayList<>(certs);
         for (int k = 0; k < oc.size(); ++k) {
             if (signCert.getSerialNumber().equals(((X509Certificate)oc.get(k)).getSerialNumber())) {
                 oc.remove(k);
                 --k;
+                continue;
             }
         }
         boolean found = true;
         while (found) {
-            X509Certificate v = cc.getLast();
+            X509Certificate v = (X509Certificate)cc.getLast();
             found = false;
             for (int k = 0; k < oc.size(); ++k) {
                 try {
@@ -544,12 +695,11 @@ public class PdfPKCS7 {
                     else
                         v.verify(((X509Certificate)oc.get(k)).getPublicKey(), provider);
                     found = true;
-                    cc.add((X509Certificate) oc.get(k));
+                    cc.add(oc.get(k));
                     oc.remove(k);
                     break;
                 }
-                catch (Exception ignored) {
-                }
+                catch (Exception ignored) {}
             }
         }
         signCerts = cc;
