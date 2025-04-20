@@ -12,6 +12,10 @@
     <name>iText</name>
     <description>iText 2.1.7 - last free version under LGPL/MPL</description>
     <url>https://github.com/itext/itextpdf</url>
+    <properties>
+        <bouncycastle.version>1.80</bouncycastle.version>
+        <java.version>21</java.version>
+    </properties>
 
     <licenses>
         <license>
@@ -22,22 +26,21 @@
     </licenses>
 
     <dependencies>
-        <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcmail-jdk14 -->
+        <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcprov-jdk18on -->
         <dependency>
             <groupId>org.bouncycastle</groupId>
-            <artifactId>bcmail-jdk14</artifactId>
-            <version>1.44</version>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcprov-jdk14 -->
         <dependency>
             <groupId>org.bouncycastle</groupId>
-            <artifactId>bcprov-jdk14</artifactId>
-            <version>1.44</version>
+            <artifactId>bcpkix-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
         </dependency>
         <dependency>
-            <groupId>bouncycastle</groupId>
-            <artifactId>bctsp-jdk14</artifactId>
-            <version>1.44</version>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcmail-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
         </dependency>
     </dependencies>
 
@@ -50,8 +53,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.1</version>
                 <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>
+                    <source>21</source>
+                    <target>21</target>
                 </configuration>
             </plugin>
         </plugins>
