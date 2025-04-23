@@ -53,6 +53,7 @@ import java.awt.Color;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 
 import com.lowagie.text.pdf.HyphenationEvent;
 import com.lowagie.text.pdf.PdfAction;
@@ -84,7 +85,7 @@ import com.lowagie.text.pdf.draw.DrawInterface;
 
 public class Chunk implements Element {
 
-	// public static membervariables
+	// public static member variables
 
 	/** The character stand in for an image or a separator. */
 	public static final String OBJECT_REPLACEMENT_CHARACTER = "\ufffc";
@@ -101,13 +102,13 @@ public class Chunk implements Element {
 	// member variables
 
 	/** This is the content of this chunk of text. */
-	protected StringBuffer content = null;
+	protected StringBuilder content = null;
 
 	/** This is the <CODE>Font</CODE> of this chunk of text. */
 	protected Font font = null;
 
 	/** Contains some of the attributes for this Chunk. */
-	protected HashMap attributes = null;
+	protected Map<String, Object> attributes = null;
 
 	// constructors
 
@@ -115,7 +116,7 @@ public class Chunk implements Element {
 	 * Empty constructor.
 	 */
 	public Chunk() {
-		this.content = new StringBuffer();
+		this.content = new StringBuilder();
 		this.font = new Font();
 	}
 
@@ -125,13 +126,13 @@ public class Chunk implements Element {
      */    
     public Chunk(Chunk ck) {
         if (ck.content != null) {
-            content = new StringBuffer(ck.content.toString());
+            content = new StringBuilder(ck.content.toString());
         }
         if (ck.font != null) {
             font = new Font(ck.font);
         }
         if (ck.attributes != null) {
-            attributes = new HashMap(ck.attributes);
+            attributes = new HashMap<>(ck.attributes);
         }
     }
     
@@ -145,7 +146,7 @@ public class Chunk implements Element {
 	 *            the font
 	 */
 	public Chunk(String content, Font font) {
-		this.content = new StringBuffer(content);
+		this.content = new StringBuilder(content);
 		this.font = font;
 	}
 
@@ -169,7 +170,7 @@ public class Chunk implements Element {
 	 *            the font
 	 */
 	public Chunk(char c, Font font) {
-		this.content = new StringBuffer();
+		this.content = new StringBuilder();
 		this.content.append(c);
 		this.font = font;
 	}
@@ -199,8 +200,8 @@ public class Chunk implements Element {
 		this(OBJECT_REPLACEMENT_CHARACTER, new Font());
 		Image copyImage = Image.getInstance(image);
 		copyImage.setAbsolutePosition(Float.NaN, Float.NaN);
-		setAttribute(IMAGE, new Object[] { copyImage, new Float(offsetX),
-				new Float(offsetY), Boolean.FALSE });
+		setAttribute(IMAGE, new Object[] { copyImage, offsetX,
+				offsetY, Boolean.FALSE });
 	}
 
 	/**
@@ -228,7 +229,7 @@ public class Chunk implements Element {
 	 */
 	public Chunk(DrawInterface separator, boolean vertical) {
 		this(OBJECT_REPLACEMENT_CHARACTER, new Font());
-		setAttribute(SEPARATOR, new Object[] {separator, Boolean.valueOf(vertical)});
+		setAttribute(SEPARATOR, new Object[] {separator, vertical});
 	}
 
 	/**
@@ -261,7 +262,7 @@ public class Chunk implements Element {
 		if (tabPosition < 0) {
 			throw new IllegalArgumentException("A tab position may not be lower than 0; yours is " + tabPosition);
 		}
-		setAttribute(TAB, new Object[] {separator, new Float(tabPosition), Boolean.valueOf(newline), new Float(0)});
+		setAttribute(TAB, new Object[] {separator, tabPosition, newline, 0});
 	}
 
 	/**
@@ -279,8 +280,8 @@ public class Chunk implements Element {
 	public Chunk(Image image, float offsetX, float offsetY,
 			boolean changeLeading) {
 		this(OBJECT_REPLACEMENT_CHARACTER, new Font());
-		setAttribute(IMAGE, new Object[] { image, new Float(offsetX),
-				new Float(offsetY), Boolean.valueOf(changeLeading) });
+		setAttribute(IMAGE, new Object[] { image, offsetX,
+				offsetY, changeLeading});
 	}
 
 	// implementation of the Element-methods
@@ -315,8 +316,8 @@ public class Chunk implements Element {
 	 * 
 	 * @return an <CODE>ArrayList</CODE>
 	 */
-	public ArrayList getChunks() {
-		ArrayList tmp = new ArrayList();
+	public ArrayList<Object> getChunks() {
+		ArrayList<Object> tmp = new ArrayList<>();
 		tmp.add(this);
 		return tmp;
 	}
@@ -328,9 +329,9 @@ public class Chunk implements Element {
 	 * 
 	 * @param string
 	 *            <CODE>String</CODE>
-	 * @return a <CODE>StringBuffer</CODE>
+	 * @return a <CODE>StringBuilder</CODE>
 	 */
-	public StringBuffer append(String string) {
+	public StringBuilder append(String string) {
 		return content.append(string);
 	}
 
@@ -380,8 +381,8 @@ public class Chunk implements Element {
 	 *         space.
 	 */
 	public boolean isEmpty() {
-		return (content.toString().trim().length() == 0)
-				&& (content.toString().indexOf("\n") == -1)
+		return (content.toString().trim().isEmpty())
+				&& (!content.toString().contains("\n"))
 				&& (attributes == null);
 	}
 
@@ -419,7 +420,7 @@ public class Chunk implements Element {
 	 * @return the attributes for this <CODE>Chunk</CODE>
 	 */
 
-	public HashMap getAttributes() {
+	public Map<String, Object> getAttributes() {
 		return attributes;
 	}
 
@@ -427,7 +428,7 @@ public class Chunk implements Element {
 	 * Sets the attributes all at once.
 	 * @param	attributes	the attributes of a Chunk
 	 */
-	public void setAttributes(HashMap attributes) {
+	public void setAttributes(Map<String, Object> attributes) {
 		this.attributes = attributes;
 	}
 
@@ -443,7 +444,7 @@ public class Chunk implements Element {
 
 	private Chunk setAttribute(String name, Object obj) {
 		if (attributes == null)
-			attributes = new HashMap();
+			attributes = new HashMap<>();
 		attributes.put(name, obj);
 		return this;
 	}
@@ -462,7 +463,7 @@ public class Chunk implements Element {
 	 * @return this <CODE>Chunk</CODE>
 	 */
 	public Chunk setHorizontalScaling(float scale) {
-		return setAttribute(HSCALE, new Float(scale));
+		return setAttribute(HSCALE, scale);
 	}
 
 	/**
@@ -476,7 +477,7 @@ public class Chunk implements Element {
 		Float f = (Float) attributes.get(HSCALE);
 		if (f == null)
 			return 1f;
-		return f.floatValue();
+		return f;
 	}
 
 	/** Key for underline. */
@@ -525,11 +526,11 @@ public class Chunk implements Element {
 	public Chunk setUnderline(Color color, float thickness, float thicknessMul,
 			float yPosition, float yPositionMul, int cap) {
 		if (attributes == null)
-			attributes = new HashMap();
-		Object obj[] = {
+			attributes = new HashMap<>();
+		Object[] obj = {
 				color,
 				new float[] { thickness, thicknessMul, yPosition, yPositionMul, cap } };
-		Object unders[][] = Utilities.addToArray((Object[][]) attributes.get(UNDERLINE),
+		Object[][] unders = Utilities.addToArray((Object[][]) attributes.get(UNDERLINE),
 				obj);
 		return setAttribute(UNDERLINE, unders);
 	}
@@ -549,7 +550,7 @@ public class Chunk implements Element {
 	 */
 
 	public Chunk setTextRise(float rise) {
-		return setAttribute(SUBSUPSCRIPT, new Float(rise));
+		return setAttribute(SUBSUPSCRIPT, rise);
 	}
 
 	/**
@@ -559,8 +560,7 @@ public class Chunk implements Element {
 	 */
 	public float getTextRise() {
 		if (attributes != null && attributes.containsKey(SUBSUPSCRIPT)) {
-			Float f = (Float) attributes.get(SUBSUPSCRIPT);
-			return f.floatValue();
+            return (Float) attributes.get(SUBSUPSCRIPT);
 		}
 		return 0.0f;
 	}
@@ -643,8 +643,8 @@ public class Chunk implements Element {
 	 */
 	public Chunk setTextRenderMode(int mode, float strokeWidth,
 			Color strokeColor) {
-		return setAttribute(TEXTRENDERMODE, new Object[] { new Integer(mode),
-				new Float(strokeWidth), strokeColor });
+		return setAttribute(TEXTRENDERMODE, new Object[] { mode,
+				strokeWidth, strokeColor });
 	}
 
 	/** Key for split character. */
@@ -705,7 +705,7 @@ public class Chunk implements Element {
 
 	public Chunk setRemoteGoto(String filename, int page) {
 		return setAttribute(REMOTEGOTO, new Object[] { filename,
-				new Integer(page) });
+				page });
 	}
 
 	/** Key for local goto. */
@@ -768,7 +768,7 @@ public class Chunk implements Element {
 	public Image getImage() {
 		if (attributes == null)
 			return null;
-		Object obj[] = (Object[]) attributes.get(Chunk.IMAGE);
+		Object[] obj = (Object[]) attributes.get(Chunk.IMAGE);
 		if (obj == null)
 			return null;
 		else {
