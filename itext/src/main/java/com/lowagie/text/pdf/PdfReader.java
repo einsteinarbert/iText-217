@@ -55,6 +55,7 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.security.PrivateKey;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -80,6 +81,7 @@ import com.lowagie.text.pdf.internal.PdfViewerPreferencesImp;
 
 import org.bouncycastle.cms.CMSEnvelopedData;
 import org.bouncycastle.cms.RecipientInformation;
+import org.bouncycastle.cms.jcajce.JceKeyTransEnvelopedRecipient;
 
 /** Reads a PDF document.
  * @author Paulo Soares (psoares@consiste.pt)
@@ -716,11 +718,16 @@ public class PdfReader implements PdfViewerPreferences {
                     Iterator recipientCertificatesIt = data.getRecipientInfos().getRecipients().iterator();
 
                     while (recipientCertificatesIt.hasNext()) {
-                        RecipientInformation recipientInfo = (RecipientInformation)recipientCertificatesIt.next();
+                        RecipientInformation recipientInfo = (RecipientInformation) recipientCertificatesIt.next();
 
                         if (recipientInfo.getRID().match(certificate) && !foundRecipient) {
-                         envelopedData = recipientInfo.getContent(certificateKey, certificateKeyProvider);
-                         foundRecipient = true;
+                            // Tạo recipient mới sử dụng API JCE hiện đại
+                            JceKeyTransEnvelopedRecipient recipientNew =
+                                    (JceKeyTransEnvelopedRecipient) new JceKeyTransEnvelopedRecipient((PrivateKey) certificateKey)
+                                    .setProvider("BC"); // Đặt provider nếu cần thiết
+
+                            envelopedData = recipientInfo.getContent(recipientNew); // Lấy nội dung giải mã
+                            foundRecipient = true;
                         }
                     }
                 }
