@@ -50,6 +50,7 @@
 package com.lowagie.text.pdf;
 
 import com.lowagie.text.ExceptionConverter;
+
 import java.io.BufferedOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -57,128 +58,192 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigInteger;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.security.Security;
 import java.security.cert.X509Certificate;
-import java.util.Vector;
-import org.bouncycastle.asn1.DEROctetString;
-import org.bouncycastle.asn1.ocsp.OCSPObjectIdentifiers;
-import org.bouncycastle.asn1.x509.X509Extension;
-import org.bouncycastle.asn1.x509.X509Extensions;
-import org.bouncycastle.ocsp.BasicOCSPResp;
-import org.bouncycastle.ocsp.CertificateID;
-import org.bouncycastle.ocsp.CertificateStatus;
-import org.bouncycastle.ocsp.OCSPException;
-import org.bouncycastle.ocsp.OCSPReq;
-import org.bouncycastle.ocsp.OCSPReqGenerator;
-import org.bouncycastle.ocsp.OCSPResp;
-import org.bouncycastle.ocsp.SingleResp;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.bouncycastle.asn1.*;
+import org.bouncycastle.asn1.ocsp.*;
+import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 /**
  * OcspClient implementation using BouncyCastle.
+ *
  * @author psoares
- * @since	2.1.6
+ * @since 2.1.6
  */
 public class OcspClientBouncyCastle implements OcspClient {
-    /** root certificate */
-    private X509Certificate rootCert;
-    /** check certificate */
-    private X509Certificate checkCert;
-    /** OCSP URL */
-    private String url;
-    
+    /**
+     * root certificate
+     */
+    private final X509Certificate rootCert;
+    /**
+     * check certificate
+     */
+    private final X509Certificate checkCert;
+    /**
+     * OCSP URL
+     */
+    private final String url;
+
     /**
      * Creates an instance of an OcspClient that will be using BouncyCastle.
-     * @param checkCert	the check certificate
-     * @param rootCert	the root certificate
-     * @param url	the OCSP URL
+     *
+     * @param checkCert the check certificate
+     * @param rootCert  the root certificate
+     * @param url       the OCSP URL
      */
     public OcspClientBouncyCastle(X509Certificate checkCert, X509Certificate rootCert, String url) {
         this.checkCert = checkCert;
         this.rootCert = rootCert;
         this.url = url;
     }
-    
+
     /**
      * Generates an OCSP request using BouncyCastle.
-     * @param issuerCert	certificate of the issues
-     * @param serialNumber	serial number
-     * @return	an OCSP request
-     * @throws OCSPException
-     * @throws IOException
+     *
+     * @param issuerCert   certificate of the issuer
+     * @param serialNumber serial number
+     * @return an OCSP request
+     * @throws IOException if generation fails
      */
-    private static OCSPReq generateOCSPRequest(X509Certificate issuerCert, BigInteger serialNumber) throws OCSPException, IOException {
-        //Add provider BC
-        Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
-        
-        // Generate the id for the certificate we are looking for
-        CertificateID id = new CertificateID(CertificateID.HASH_SHA1, issuerCert, serialNumber);
-        
-        // basic request generation with nonce
-        OCSPReqGenerator gen = new OCSPReqGenerator();
-        
-        gen.addRequest(id);
-        
-        // create details for nonce extension
-        Vector oids = new Vector();
-        Vector values = new Vector();
-        
-        oids.add(OCSPObjectIdentifiers.id_pkix_ocsp_nonce);
-        values.add(new X509Extension(false, new DEROctetString(new DEROctetString(PdfEncryption.createDocumentId()).getEncoded())));
-        
-        gen.setRequestExtensions(new X509Extensions(oids, values));
-        
-        return gen.generate();
+    public static byte[] generateOCSPRequest(X509Certificate issuerCert, BigInteger serialNumber) throws IOException {
+        // Add BC provider if not already present
+        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
+            Security.addProvider(new BouncyCastleProvider());
+        }
+
+        // Step 1: Build the CertificateID (Issuer and Serial Number)
+        ASN1EncodableVector certIDVector = new ASN1EncodableVector();
+
+        // CertificateIssuer (issuer certificate subject hash)
+        certIDVector.add(new DEROctetString(issuerCert.getIssuerX500Principal().getEncoded()));
+
+        // CertificateSerialNumber (serial number of the certificate)
+        certIDVector.add(new ASN1Integer(serialNumber));
+
+        // Hash algorithm (SHA1)
+        certIDVector.add(new ASN1ObjectIdentifier("1.3.14.3.2.26")); // SHA1 hash OID
+
+        // Create CertificateID using ASN.1 structures
+        DERSequence certID = new DERSequence(certIDVector);
+
+        // Step 2: Create the Request (CertificateID)
+        ASN1EncodableVector requestVector = new ASN1EncodableVector();
+        requestVector.add(certID);
+
+        // Step 3: Extensions (nonces or other optional data)
+        List<ASN1Encodable> oids = new ArrayList<>();
+
+        byte[] nonce = BigInteger.valueOf(System.currentTimeMillis()).toByteArray();
+        DEROctetString nonceExtension = new DEROctetString(nonce);
+
+        // Using Extension and Extensions from BouncyCastle 1.8
+        Extension nonceExt = new Extension(OCSPObjectIdentifiers.id_pkix_ocsp_nonce, false, nonceExtension);
+        oids.add(nonceExt);
+
+        // Step 4: Create Extensions (using ASN1EncodableVector and DERSequence)
+        ASN1EncodableVector extensionsVector = new ASN1EncodableVector();
+        for (ASN1Encodable oid : oids) {
+            extensionsVector.add(oid);
+        }
+
+        // Create final Extensions sequence
+        ASN1Sequence extensions = new DERSequence(extensionsVector);
+
+        // Step 5: Create TBSRequest (To Be Signed)
+        ASN1EncodableVector tbsRequestVector = new ASN1EncodableVector();
+        tbsRequestVector.add(new ASN1Integer(1)); // Version (set to 1)
+        tbsRequestVector.add(new DERSequence(requestVector)); // Request
+        tbsRequestVector.add(extensions); // Extensions
+
+        // Create TBSRequest (To Be Signed) using DER encoding
+        ASN1Sequence tbsRequestSequence = new DERSequence(tbsRequestVector);
+
+        // Step 6: Create OCSPRequest (entire request)
+        // Use the DER-encoded TBSRequest for the OCSP request
+        ASN1EncodableVector ocspRequestVector = new ASN1EncodableVector();
+        ocspRequestVector.add(tbsRequestSequence);
+
+        // Create final OCSPRequest
+        ASN1Sequence ocspRequestSequence = new DERSequence(ocspRequestVector);
+
+        // Step 7: Return the DER-encoded OCSPRequest
+        return ocspRequestSequence.getEncoded(); // Returns byte array (DER encoding)
     }
-    
+
     /**
-     * @return 	a byte array
+     * @return a byte array
      * @see com.lowagie.text.pdf.OcspClient#getEncoded()
      */
     public byte[] getEncoded() {
         try {
-            OCSPReq request = generateOCSPRequest(rootCert, checkCert.getSerialNumber());
-            byte[] array = request.getEncoded();
-            URL urlt = new URL(url);
-            HttpURLConnection con = (HttpURLConnection)urlt.openConnection();
+            // Gọi hàm generateOCSPRequest để tạo yêu cầu OCSP
+            byte[] ocspRequestBytes = generateOCSPRequest(rootCert, checkCert.getSerialNumber());
+
+            // Gửi OCSP request tới server
+            URL urlt = new URI(url).toURL();
+            HttpURLConnection con = (HttpURLConnection) urlt.openConnection();
             con.setRequestProperty("Content-Type", "application/ocsp-request");
             con.setRequestProperty("Accept", "application/ocsp-response");
             con.setDoOutput(true);
-            OutputStream out = con.getOutputStream();
-            DataOutputStream dataOut = new DataOutputStream(new BufferedOutputStream(out));
-            dataOut.write(array);
-            dataOut.flush();
-            dataOut.close();
+
+            try (OutputStream out = con.getOutputStream();
+                 DataOutputStream dataOut = new DataOutputStream(new BufferedOutputStream(out))) {
+                dataOut.write(ocspRequestBytes);
+                dataOut.flush();
+            }
+
             if (con.getResponseCode() / 100 != 2) {
                 throw new IOException("Invalid HTTP response");
             }
-            //Get Response
-            InputStream in = (InputStream) con.getContent();
-            OCSPResp ocspResponse = new OCSPResp(in);
 
-            if (ocspResponse.getStatus() != 0)
-                throw new IOException("Invalid status: " + ocspResponse.getStatus());
-            BasicOCSPResp basicResponse = (BasicOCSPResp) ocspResponse.getResponseObject();
-            if (basicResponse != null) {
-                SingleResp[] responses = basicResponse.getResponses();
-                if (responses.length == 1) {
-                    SingleResp resp = responses[0];
-                    Object status = resp.getCertStatus();
-                    if (status == CertificateStatus.GOOD) {
-                        return basicResponse.getEncoded();
-                    }
-                    else if (status instanceof org.bouncycastle.ocsp.RevokedStatus) {
-                        throw new IOException("OCSP Status is revoked!");
-                    }
-                    else {
-                        throw new IOException("OCSP Status is unknown!");
-                    }
+            // Đọc phản hồi OCSP và phân tích bằng OCSPResponse (BouncyCastle 1.8+)
+            try (InputStream in = con.getInputStream();
+                 ASN1InputStream asn1InputStream = new ASN1InputStream(in)) {
+
+                ASN1Primitive asn1Resp = asn1InputStream.readObject();
+                OCSPResponse ocspResponse = OCSPResponse.getInstance(asn1Resp);
+
+                // Kiểm tra trạng thái phản hồi
+                ASN1Enumerated responseStatus = ASN1Enumerated.getInstance(ocspResponse.getResponseStatus());
+                if (responseStatus.getValue().intValue() != OCSPResponseStatus.SUCCESSFUL) {
+                    throw new IOException("OCSP response status not successful: " + responseStatus.getValue().intValue());
                 }
+
+                // Lấy responseBytes
+                ResponseBytes responseBytes = ocspResponse.getResponseBytes();
+                if (responseBytes == null || !responseBytes.getResponseType().equals(OCSPObjectIdentifiers.id_pkix_ocsp_basic)) {
+                    throw new IOException("Invalid or missing OCSP response bytes");
+                }
+
+                // Parse lại basicOCSPResponse
+                ASN1InputStream basicIn = new ASN1InputStream(responseBytes.getResponse().getOctets());
+                ASN1Primitive basicOcspAsn1 = basicIn.readObject();
+                ASN1Sequence basicOcspSeq = ASN1Sequence.getInstance(basicOcspAsn1);
+                basicIn.close();
+
+                // Lấy SingleResponse từ cấu trúc ASN1
+                ASN1Sequence tbsResponseData = (ASN1Sequence) basicOcspSeq.getObjectAt(0);
+                ASN1Sequence responsesSeq = (ASN1Sequence) tbsResponseData.getObjectAt(6); // index 6: responses
+
+                ASN1Sequence singleResp = (ASN1Sequence) responsesSeq.getObjectAt(0);
+                ASN1TaggedObject certStatusObj = (ASN1TaggedObject) singleResp.getObjectAt(1); // certStatus là tagged
+
+                int tagNo = certStatusObj.getTagNo();
+                return switch (tagNo) {
+                    case 0 -> responseBytes.getResponse().getOctets();
+                    case 1 -> throw new IOException("OCSP status: revoked");
+                    default -> throw new IOException("OCSP status: unknown");
+                };
             }
-        }
-        catch (Exception ex) {
+
+        } catch (Exception ex) {
             throw new ExceptionConverter(ex);
         }
-        return null;
     }
 }
